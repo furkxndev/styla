@@ -1,0 +1,58 @@
+# =============================================================================
+# Kombin Backend - yerel gelistirme yigini
+# Kullanim:
+#   docker compose up --build        -> API + PostgreSQL
+#   docker compose up postgres -d    -> sadece veritabani (API'yi npm ile calistir)
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: kombin-postgres
+    restart: unless-stopped
+    environment:
+      # .env'deki DB_* degerleriyle ayni kalmali; yoksa varsayilanlar kullanilir
+      POSTGRES_USER: ${DB_USERNAME:-kombin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-kombin_dev_password}
+      POSTGRES_DB: ${DB_DATABASE:-kombin}
+    ports:
+      # Host'tan (npm run start:dev veya psql) erisebilmek icin disari acilir
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - kombin_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # API, veritabani gercekten sorgu kabul edene kadar beklesin
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-kombin} -d ${DB_DATABASE:-kombin}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kombin-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Compose agi icinde veritabanina servis adiyla erisilir; .env'deki
+      # localhost degerini ezer.
+      DB_HOST: postgres
+      DB_PORT: 5432
+      # Container icinde port sabit 4000; host tarafi ${PORT} ile degisir
+      PORT: 4000
+      # Sabah kombini gorevi kullanicinin yerel saatine gore calisir
+      TZ: ${TZ:-Europe/Istanbul}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '${PORT:-4000}:4000'
+    volumes:
+      # Yuklenen gorseller container yeniden olusunca kaybolmasin
+      - ./uploads:/app/uploads
+
+volumes:
+  kombin_pgdata:

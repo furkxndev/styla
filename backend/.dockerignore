@@ -1,0 +1,31 @@
+# Bagimliliklar imaj icinde yeniden kurulur
+node_modules
+npm-debug.log*
+
+# Derleme ciktisi build stage'inde uretilir
+dist
+*.tsbuildinfo
+coverage
+
+# Sirlar imaja ASLA girmez; degerler calisma aninda env_file ile verilir
+.env
+.env.local
+.env.*.local
+
+# Kullanici yuklemeleri volume uzerinden baglanir
+uploads
+
+# Gelistirme / editor artiklari
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+*.log
+
+# Docker ve dokumantasyon dosyalari imaj icinde gereksiz
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md

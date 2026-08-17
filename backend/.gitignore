@@ -1,0 +1,24 @@
+# bağımlılıklar
+/node_modules
+
+# derleme çıktısı
+/dist
+*.tsbuildinfo
+
+# ortam değişkenleri — gerçek sırlar asla depoya girmez
+.env
+.env.local
+.env.*.local
+
+# yüklenen görseller (local storage driver)
+/uploads
+
+# loglar
+*.log
+npm-debug.log*
+
+# editör / işletim sistemi
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json

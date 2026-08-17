@@ -1,0 +1,50 @@
+# =============================================================================
+# Styla — depo genelinde geçerli kurallar
+# (backend/.gitignore ve frontend/.gitignore ek olarak uygulanır)
+# =============================================================================
+
+# Bağımlılıklar
+node_modules/
+
+# Ortam değişkenleri — gerçek sırlar (API anahtarları, JWT, DB şifresi) ASLA girmez
+.env
+.env.local
+.env.*.local
+
+# Derleme çıktıları
+dist/
+build/
+web-build/
+*.tsbuildinfo
+
+# Expo
+.expo/
+expo-env.d.ts
+.metro-health-check*
+
+# Üretilen native klasörler
+/frontend/ios
+/frontend/android
+
+# İmzalama materyali
+*.jks
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+
+# Yüklenen kullanıcı görselleri (local storage driver)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Loglar
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# İşletim sistemi / editör
+.DS_Store
+.idea/
+.vscode/

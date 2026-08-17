@@ -1,0 +1,85 @@
+{
+  "expo": {
+    "name": "Styla",
+    "slug": "styla",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "styla",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.styla.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Kıyafetlerinin fotoğrafını çekip gardırobuna eklemek için kameraya erişim gerekiyor.",
+        "NSPhotoLibraryUsageDescription": "Gardırobuna kıyafet eklemek için galerindeki fotoğraflara erişim gerekiyor.",
+        "NSLocationWhenInUseUsageDescription": "Bulunduğun yerin hava durumuna göre kombin önerebilmek için konumuna erişmemiz gerekiyor.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "Geliştirme sırasında aynı ağdaki Styla sunucusuna bağlanmak için kullanılır."
+      }
+    },
+    "android": {
+      "package": "com.styla.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#141210",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM"
+      ],
+      "usesCleartextTraffic": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Gardırobuna kıyafet eklemek için galerindeki fotoğraflara erişim gerekiyor.",
+          "cameraPermission": "Kıyafetlerinin fotoğrafını çekip gardırobuna eklemek için kameraya erişim gerekiyor."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Bulunduğun yerin hava durumuna göre kombin önerebilmek için konumuna erişmemiz gerekiyor."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#C2703C",
+          "defaultChannel": "daily-outfit"
+        }
+      ],
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F7F5F2",
+          "imageWidth": 240
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:4000/api/v1",
+      "useMockApi": false
+    }
+  }
+}
