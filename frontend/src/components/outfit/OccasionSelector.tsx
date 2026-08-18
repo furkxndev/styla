@@ -40,7 +40,9 @@ export const OccasionSelector: React.FC<OccasionSelectorProps> = ({
       const selected = value === occasion.key;
       const pending = pendingOccasion === occasion.key;
       const ready = readyOccasions.includes(occasion.key);
-      const fg = selected ? colors.primaryText : colors.text;
+      // Seçilide de koyu metin: vurgu rengini zemin ve ikon taşıyor,
+      // metnin okunurluğu kontrasta bırakılıyor.
+      const fg = selected ? colors.text : colors.textSecondary;
 
       return (
         <Pressable
@@ -68,18 +70,23 @@ export const OccasionSelector: React.FC<OccasionSelectorProps> = ({
             {pending ? (
               <ActivityIndicator
                 size="small"
-                color={selected ? colors.primaryText : colors.accent}
+                color={selected ? colors.primaryText : colors.textSecondary}
               />
             ) : (
               <Ionicons
                 name={occasion.icon}
                 size={18}
-                color={selected ? colors.primaryText : colors.accentDark}
+                color={selected ? colors.primaryText : colors.textSecondary}
               />
             )}
           </View>
 
-          <Text variant="captionStrong" color={fg} numberOfLines={1} style={styles.label}>
+          <Text
+            variant="captionStrong"
+            color={fg}
+            numberOfLines={1}
+            style={[styles.label, selected && styles.labelSelected]}
+          >
             {occasion.shortLabel}
           </Text>
 
@@ -110,20 +117,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  tileSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  // Seçili durum uygulamanın diğer yerlerindeki dille aynı: sıcak vurgu zemini
+  // + vurgu kenarlığı (bkz. WardrobeToolbar.buttonActive, AdminSettings).
+  tileSelected: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
   tilePressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   tileDisabled: { opacity: 0.5 },
   iconBox: {
     width: 34,
     height: 34,
     borderRadius: radius.sm,
-    backgroundColor: colors.accentSoft,
+    // Seçilmemişken nötr: vurgu rengi altı kutucuğa birden dağılınca
+    // seçili olan öne çıkmıyordu.
+    backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Seçili kutucukta koyu zemin üzerinde hafif bir kontrast katmanı
-  iconBoxSelected: { backgroundColor: 'rgba(255,255,255,0.14)' },
+  // Vurgu yalnızca seçili kutucukta, tek bir yerde toplanır
+  iconBoxSelected: { backgroundColor: colors.accent },
   label: { ...typography.captionStrong, fontSize: 11.5 },
+  labelSelected: { fontWeight: '700' },
   readyDot: {
     position: 'absolute',
     top: spacing.sm,
@@ -131,6 +143,7 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: colors.success,
+    // Sıcak palette tek yeşil leke duruyordu; hazır göstergesi de vurgu ailesinde
+    backgroundColor: colors.accent,
   },
 });

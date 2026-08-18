@@ -21,6 +21,7 @@ import {
 import {
   useDailyNotificationScheduler,
   useNotificationResponse,
+  usePushTokenRegistration,
 } from '../hooks/useNotifications';
 import { useAuthStore } from '../store/authStore';
 import { useOutfitStore } from '../store/outfitStore';
@@ -48,7 +49,10 @@ export const RootNavigator: React.FC = () => {
     fetchHistory({ silent: true });
   }, [isAuthenticated, fetchItems, fetchHistory]);
 
-  // Sabah bildirimini planla / güncelle
+  // Push token'ı kaydet (varsa bildirimi sunucu gönderir)
+  usePushTokenRegistration();
+
+  // Push token yoksa sabah bildirimini cihazda planla / güncelle
   useDailyNotificationScheduler();
 
   // Bildirime dokunulduğunda "Bugünün Kombini" ekranına git

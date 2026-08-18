@@ -158,11 +158,15 @@ export class UsersService implements OnModuleInit {
     return this.users.save(user);
   }
 
-  async updatePushToken(id: string, token: string): Promise<void> {
+  async updatePushToken(id: string, token: string, timezone?: string): Promise<void> {
     const user = await this.findById(id);
     const current: NotificationSettings = user.notifications ?? DEFAULT_NOTIFICATION_SETTINGS;
 
-    user.notifications = { ...current, pushToken: token };
+    user.notifications = {
+      ...current,
+      pushToken: token,
+      timezone: timezone ?? current.timezone ?? null,
+    };
     await this.users.save(user);
   }
 

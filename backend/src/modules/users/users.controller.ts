@@ -50,7 +50,7 @@ export class UsersController {
     @CurrentUser('userId') userId: string,
     @Body() dto: PushTokenDto,
   ): Promise<void> {
-    await this.usersService.updatePushToken(userId, dto.token);
+    await this.usersService.updatePushToken(userId, dto.token, dto.timezone);
   }
 
   @Get('me/stats')

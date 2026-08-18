@@ -81,33 +81,9 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
         <Card padded={false}>
           <ListRow
-            icon="color-palette-outline"
-            title="Stil tercihleri"
-            onPress={() => navigation.navigate('StylePreferences')}
-          />
-          <ListRow
-            icon="notifications-outline"
-            title="Bildirimler"
-            onPress={() => navigation.navigate('NotificationSettings')}
-          />
-          <ListRow
-            icon="location-outline"
-            title="Konum"
-            onPress={() => navigation.navigate('LocationSettings')}
-          />
-        </Card>
-
-        <Card padded={false}>
-          <ListRow
             icon="information-circle-outline"
             title="Sürüm"
             value={Constants.expoConfig?.version ?? '1.0.0'}
-            showChevron={false}
-          />
-          <ListRow
-            icon="server-outline"
-            title="Veri kaynağı"
-            value={config.useMockApi ? 'Demo (yerel)' : 'Sunucu'}
             showChevron={false}
           />
         </Card>

@@ -32,4 +32,10 @@ export class UpdateNotificationsDto {
   @IsString()
   @MaxLength(255)
   pushToken?: string;
+
+  @ApiPropertyOptional({ example: 'Europe/Istanbul', nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
 }

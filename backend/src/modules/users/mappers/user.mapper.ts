@@ -1,4 +1,7 @@
-import type { UserResponse } from '../../../common/types/domain.types';
+import type {
+  NotificationSettings,
+  UserResponse,
+} from '../../../common/types/domain.types';
 import {
   DEFAULT_LOCATION_SETTINGS,
   DEFAULT_NOTIFICATION_SETTINGS,
@@ -11,6 +14,18 @@ import {
  * passwordHash ve refreshTokenHash burada bilinçli olarak dışarıda bırakılır;
  * bu fonksiyon dışında kullanıcı nesnesi doğrudan response'a yazılmamalıdır.
  */
+/**
+ * `lastNotifiedDate` sunucu içi durumdur; response'a yazılırsa istemci onu
+ * geri PATCH'ler ve `forbidNonWhitelisted` yüzünden istek 400 döner.
+ */
+function toNotificationsResponse(
+  settings: NotificationSettings | null,
+): NotificationSettings {
+  const { lastNotifiedDate: _internal, ...rest } =
+    settings ?? DEFAULT_NOTIFICATION_SETTINGS;
+  return rest;
+}
+
 export function toUserResponse(user: User): UserResponse {
   return {
     id: user.id,
@@ -23,7 +38,7 @@ export function toUserResponse(user: User): UserResponse {
     gender: user.gender,
     birthYear: user.birthYear ?? undefined,
     preferences: user.preferences ?? DEFAULT_STYLE_PREFERENCES,
-    notifications: user.notifications ?? DEFAULT_NOTIFICATION_SETTINGS,
+    notifications: toNotificationsResponse(user.notifications),
     location: user.location ?? DEFAULT_LOCATION_SETTINGS,
     onboardingCompleted: user.onboardingCompleted,
     createdAt: user.createdAt.toISOString(),

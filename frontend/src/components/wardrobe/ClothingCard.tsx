@@ -147,7 +147,8 @@ const styles = StyleSheet.create({
     ...shadows.xs,
   },
   pressed: { opacity: 0.92, transform: [{ scale: 0.985 }] },
-  selected: { borderColor: colors.primary, borderWidth: 2 },
+  // Seçim işareti uygulama genelinde vurgu rengi (bkz. Chip, OccasionSelector)
+  selected: { borderColor: colors.accent, borderWidth: 2 },
   imageWrapper: { width: '100%', aspectRatio: IMAGE_RATIO },
   imageWrapperCompact: { aspectRatio: 1 },
   // Genişlik + yükseklik birlikte verilince ClothingImage'ın kendi oranı devre dışı kalır

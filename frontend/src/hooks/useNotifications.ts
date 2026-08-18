@@ -19,15 +19,29 @@ export const useDailyNotificationScheduler = () => {
   const lastSignature = useRef<string | null>(null);
 
   const settings = user?.notifications;
+  const onboardingCompleted = user?.onboardingCompleted ?? false;
+
+  // Önceki sürümlerden kalmış olabilecek fazla bildirimleri bir kez temizle
+  useEffect(() => {
+    notificationService.sweepDuplicates().catch(() => undefined);
+  }, []);
 
   useEffect(() => {
-    if (!user || !settings) return;
+    // Kullanıcı saatini onboarding'de seçiyor; öncesinde varsayılan 08:00'i
+    // planlarsak kimsenin istemediği bir bildirim kurulmuş oluyor.
+    if (!user || !settings || !onboardingCompleted) return;
 
     const run = async () => {
-      if (!settings.dailyOutfitEnabled) {
-        if (lastSignature.current !== 'disabled') {
+      // Push token kayıtlıysa bildirimi sunucu gönderiyor. Cihaz da planlarsa
+      // aynı saatte iki bildirim gelir; bu yüzden yerel planlama iptal edilir.
+      const deliveredByServer = Boolean(settings.pushToken);
+      const idle = !settings.dailyOutfitEnabled || deliveredByServer;
+
+      if (idle) {
+        const reason = deliveredByServer ? 'remote' : 'disabled';
+        if (lastSignature.current !== reason) {
+          lastSignature.current = reason;
           await notificationService.cancelDailyOutfit();
-          lastSignature.current = 'disabled';
         }
         return;
       }
@@ -36,15 +50,53 @@ export const useDailyNotificationScheduler = () => {
       const signature = `${settings.dailyOutfitTime}|${content.body}`;
       if (signature === lastSignature.current) return;
 
+      // İmza await'ten ÖNCE yazılır: hava/kombin arka arkaya güncellenince
+      // aynı anda iki planlama başlayıp iki bildirim kalıyordu.
+      const previous = lastSignature.current;
+      lastSignature.current = signature;
+
       const id = await notificationService.scheduleDailyOutfit(
         settings.dailyOutfitTime,
         content,
       );
-      lastSignature.current = id ? signature : null;
+      if (!id) lastSignature.current = previous;
     };
 
     run();
-  }, [user, settings, weather, todayOutfit]);
+  }, [user, settings, onboardingCompleted, weather, todayOutfit]);
+};
+
+/**
+ * Cihazın Expo push token'ını sunucuya kaydeder.
+ *
+ * Token yalnızca gerçek cihazda ve development/production build'de üretilir;
+ * Expo Go ve simülatörde null döner. O durumda kayıt yapılmaz ve bildirim
+ * cihazda yerel olarak planlanmaya devam eder.
+ */
+export const usePushTokenRegistration = () => {
+  const user = useAuthStore((state) => state.user);
+  const registerPushToken = useAuthStore((state) => state.registerPushToken);
+  const attempted = useRef(false);
+
+  const enabled = user?.notifications?.dailyOutfitEnabled ?? false;
+  const onboardingCompleted = user?.onboardingCompleted ?? false;
+
+  useEffect(() => {
+    if (!user || !enabled || !onboardingCompleted || attempted.current) return;
+
+    const run = async () => {
+      // İzin diyaloğu burada açılmaz; onboarding'de zaten soruluyor.
+      if (!(await notificationService.hasPermission())) return;
+
+      attempted.current = true;
+      const token = await notificationService.getPushToken();
+      if (!token) return;
+
+      await registerPushToken(token, notificationService.getTimezone());
+    };
+
+    run();
+  }, [user, enabled, onboardingCompleted, registerPushToken]);
 };
 
 /** Bildirime dokunulduğunda ilgili ekrana yönlendirir */
@@ -100,12 +152,7 @@ export const useNotificationControls = () => {
     [updateNotifications],
   );
 
-  const sendPreview = useCallback(async () => {
-    const content = buildDailyNotificationContent(weather, todayOutfit, user?.fullName);
-    await notificationService.sendPreview(content);
-  }, [todayOutfit, user?.fullName, weather]);
-
   const previewText = buildDailyNotificationContent(weather, todayOutfit, user?.fullName);
 
-  return { setEnabled, setTime, sendPreview, previewText };
+  return { setEnabled, setTime, previewText };
 };

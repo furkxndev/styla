@@ -293,7 +293,7 @@ const SelectableCard: React.FC<{
     </Text>
     {selected && (
       <View style={s.check}>
-        <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+        <Ionicons name="checkmark-circle" size={18} color={colors.accent} />
       </View>
     )}
   </Pressable>
@@ -328,7 +328,11 @@ const s = StyleSheet.create({
     backgroundColor: colors.surface,
     gap: spacing.xxs,
   },
-  selectableActive: { borderColor: colors.primary, borderWidth: 2 },
+  selectableActive: {
+    borderColor: colors.accent,
+    borderWidth: 2,
+    backgroundColor: colors.accentSoft,
+  },
   selectableTitle: { marginRight: spacing.xxl },
   check: { position: 'absolute', top: spacing.lg, right: spacing.lg },
   notificationPreview: {

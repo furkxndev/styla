@@ -24,7 +24,13 @@ export interface NotificationSettings {
   weatherAlertsEnabled: boolean;
   /** Kullanıcının kombini işaretlemesi için akşam hatırlatması */
   wearReminderEnabled: boolean;
+  /**
+   * Expo push token. Doluysa bildirimi sunucu gönderir ve cihaz yerel bildirim
+   * planlamaz; aksi halde aynı saatte iki bildirim gelirdi.
+   */
   pushToken?: string | null;
+  /** Cihazın IANA saat dilimi; sunucu bildirim saatini buna göre hesaplar */
+  timezone?: string | null;
 }
 
 export interface UserLocationSettings {

@@ -30,6 +30,8 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   weatherAlertsEnabled: true,
   wearReminderEnabled: false,
   pushToken: null,
+  timezone: null,
+  lastNotifiedDate: null,
 };
 
 export const DEFAULT_LOCATION_SETTINGS: UserLocationSettings = {

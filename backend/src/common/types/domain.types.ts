@@ -247,7 +247,21 @@ export interface NotificationSettings {
   dailyOutfitTime: string;
   weatherAlertsEnabled: boolean;
   wearReminderEnabled: boolean;
+  /**
+   * Expo push token. Doluysa bildirimi sunucu gönderir; cihaz kendi yerel
+   * bildirimini planlamaz (yoksa iki bildirim gelirdi).
+   */
   pushToken?: string | null;
+  /**
+   * Cihazın IANA saat dilimi ("Europe/Istanbul"). Bildirim saati sunucunun
+   * değil kullanıcının yerel saatine göre değerlendirilir.
+   */
+  timezone?: string | null;
+  /**
+   * Sunucu içi durum: günlük bildirimin gönderildiği son gün (YYYY-MM-DD).
+   * API cevabına yazılmaz (bkz. user.mapper.ts).
+   */
+  lastNotifiedDate?: string | null;
 }
 
 export interface UserLocationSettings {

@@ -18,6 +18,23 @@ import { storage } from '../storage';
 
 export const NOTIFICATION_CHANNEL_ID = 'daily-outfit';
 
+/** Planlanmış bildirimler arasında günlük kombini tanımak için (data.type) */
+const DAILY_NOTIFICATION_TYPE = 'daily-outfit';
+/**
+ * Planlama/iptal işlemlerini sıraya sokar.
+ *
+ * Hava durumu ve kombin ayrı ayrı yüklendiği için planlayıcı kısa aralıklarla
+ * birden fazla kez tetiklenebiliyordu. Eşzamanlı iki çağrı aynı eski id'yi
+ * iptal edip iki yeni bildirim planlıyor, sadece sonuncusunun id'si
+ * saklandığı için diğeri "yetim" kalıp her gün fazladan bildirim üretiyordu.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+const serialize = <T,>(task: () => Promise<T>): Promise<T> => {
+  const next = queue.then(task, task);
+  queue = next.catch(() => undefined);
+  return next;
+};
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -65,6 +82,48 @@ export const buildDailyNotificationContent = (
   return { title, body: `${weatherPart} ${outfitPart}` };
 };
 
+/** Planlanmış günlük kombin bildirimlerinin tamamı */
+const getDailyRequests = async (): Promise<Notifications.NotificationRequest[]> => {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync().catch(
+    () => [] as Notifications.NotificationRequest[],
+  );
+  return scheduled.filter(
+    (request) => request.content.data?.type === DAILY_NOTIFICATION_TYPE,
+  );
+};
+
+/**
+ * `keep` dışındaki tüm günlük kombin bildirimlerini iptal eder ve iptal edilen
+ * adedi döner. Yalnızca depodaki id'ye güvenmek yetmiyor; id'si kaybolmuş
+ * bildirimler de burada yakalanır.
+ */
+const clearDailyNotifications = async (options?: {
+  keep?: string | null;
+}): Promise<number> => {
+  const requests = await getDailyRequests();
+  const targets = requests.filter((request) => request.identifier !== options?.keep);
+
+  await Promise.all(
+    targets.map((request) =>
+      Notifications.cancelScheduledNotificationAsync(request.identifier).catch(
+        () => undefined,
+      ),
+    ),
+  );
+
+  if (!options?.keep) {
+    const stored = await storage.get<string>(STORAGE_KEYS.scheduledNotificationId);
+    if (stored) {
+      await Notifications.cancelScheduledNotificationAsync(stored).catch(
+        () => undefined,
+      );
+    }
+    await storage.remove(STORAGE_KEYS.scheduledNotificationId);
+  }
+
+  return targets.length;
+};
+
 export const notificationService = {
   /** İzin ister; verilmezse false döner */
   async requestPermission(): Promise<boolean> {
@@ -79,6 +138,21 @@ export const notificationService = {
 
     const { status } = await Notifications.requestPermissionsAsync();
     return status === 'granted';
+  },
+
+  /** İzin diyaloğu açmadan mevcut durumu okur */
+  async hasPermission(): Promise<boolean> {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === 'granted';
+  },
+
+  /** Sunucunun bildirim saatini doğru hesaplaması için cihazın saat dilimi */
+  getTimezone(): string | null {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
+    } catch {
+      return null;
+    }
   },
 
   async ensureAndroidChannel(): Promise<void> {
@@ -97,41 +171,60 @@ export const notificationService = {
     time: string,
     content: DailyNotificationContent,
   ): Promise<string | null> {
-    const granted = await notificationService.requestPermission();
-    if (!granted) return null;
+    return serialize(async () => {
+      const granted = await notificationService.requestPermission();
+      if (!granted) return null;
 
-    await notificationService.ensureAndroidChannel();
-    await notificationService.cancelDailyOutfit();
+      await notificationService.ensureAndroidChannel();
+      // Yeni planlamadan önce eskilerin tamamı (yetimler dahil) temizlenir
+      await clearDailyNotifications();
 
-    const { hour, minute } = parseTimeString(time);
+      const { hour, minute } = parseTimeString(time);
 
-    const identifier = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: content.title,
-        body: content.body,
-        sound: 'default',
-        data: { screen: 'DailyOutfit', type: 'daily-outfit' },
-        ...(Platform.OS === 'android' ? { channelId: NOTIFICATION_CHANNEL_ID } : {}),
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour,
-        minute,
-      },
+      const identifier = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: content.title,
+          body: content.body,
+          sound: 'default',
+          data: { screen: 'DailyOutfit', type: DAILY_NOTIFICATION_TYPE },
+          ...(Platform.OS === 'android' ? { channelId: NOTIFICATION_CHANNEL_ID } : {}),
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour,
+          minute,
+        },
+      });
+
+      // Emniyet kemeri: bu id dışında günlük kombin bildirimi kalmamalı
+      await clearDailyNotifications({ keep: identifier });
+      await storage.set(STORAGE_KEYS.scheduledNotificationId, identifier);
+      return identifier;
     });
-
-    await storage.set(STORAGE_KEYS.scheduledNotificationId, identifier);
-    return identifier;
   },
 
   async cancelDailyOutfit(): Promise<void> {
-    const identifier = await storage.get<string>(STORAGE_KEYS.scheduledNotificationId);
-    if (identifier) {
-      await Notifications.cancelScheduledNotificationAsync(identifier).catch(
-        () => undefined,
-      );
-      await storage.remove(STORAGE_KEYS.scheduledNotificationId);
-    }
+    await serialize(() => clearDailyNotifications());
+  },
+
+  /**
+   * Uygulama açılışında çağrılır: geçmiş sürümlerden kalan fazla bildirimleri
+   * temizler. Kayıtlı id'ye dokunulmaz; planlayıcı zaten yeniden planlar.
+   */
+  async sweepDuplicates(): Promise<number> {
+    return serialize(async () => {
+      const scheduled = await getDailyRequests();
+      if (scheduled.length <= 1) return 0;
+
+      const keepId = await storage.get<string>(STORAGE_KEYS.scheduledNotificationId);
+      const keep = scheduled.some((request) => request.identifier === keepId)
+        ? keepId
+        : scheduled[scheduled.length - 1].identifier;
+
+      const removed = await clearDailyNotifications({ keep });
+      await storage.set(STORAGE_KEYS.scheduledNotificationId, keep as string);
+      return removed;
+    });
   },
 
   async cancelAll(): Promise<void> {
@@ -141,25 +234,6 @@ export const notificationService = {
 
   async getScheduled() {
     return Notifications.getAllScheduledNotificationsAsync();
-  },
-
-  /** Ayarlar ekranındaki "Örnek bildirim gönder" için */
-  async sendPreview(content: DailyNotificationContent): Promise<void> {
-    const granted = await notificationService.requestPermission();
-    if (!granted) return;
-    await notificationService.ensureAndroidChannel();
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: content.title,
-        body: content.body,
-        data: { screen: 'DailyOutfit', type: 'daily-outfit' },
-        ...(Platform.OS === 'android' ? { channelId: NOTIFICATION_CHANNEL_ID } : {}),
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: 3,
-      },
-    });
   },
 
   /** Uzaktan bildirim için Expo push token (backend'e gönderilir) */

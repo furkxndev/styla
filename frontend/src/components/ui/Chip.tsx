@@ -28,7 +28,9 @@ export const Chip: React.FC<ChipProps> = ({
   style,
 }) => {
   const height = size === 'sm' ? 30 : 38;
-  const fg = selected ? colors.primaryText : colors.textSecondary;
+  // Seçili durum vurgu zemini + vurgu kenarlığı ile anlatılır; metin kontrast
+  // için koyu kalır (koyu dolgu, sıcak paletin içinde sert bir blok oluyordu).
+  const fg = selected ? colors.text : colors.textSecondary;
 
   const content = (
     <View style={styles.row}>
@@ -38,7 +40,7 @@ export const Chip: React.FC<ChipProps> = ({
             styles.dot,
             {
               backgroundColor: dotColor,
-              borderColor: selected ? colors.primaryText : colors.border,
+              borderColor: selected ? colors.borderStrong : colors.border,
             },
           ]}
         />
@@ -65,7 +67,11 @@ export const Chip: React.FC<ChipProps> = ({
       <View
         style={[
           styles.base,
-          { height, backgroundColor: selected ? colors.primary : colors.surface },
+          {
+            height,
+            backgroundColor: selected ? colors.accentSoft : colors.surface,
+            borderColor: selected ? colors.accent : colors.border,
+          },
           style,
         ]}
       >
@@ -88,8 +94,8 @@ export const Chip: React.FC<ChipProps> = ({
         styles.base,
         {
           height,
-          backgroundColor: selected ? colors.primary : colors.surface,
-          borderColor: selected ? colors.primary : colors.border,
+          backgroundColor: selected ? colors.accentSoft : colors.surface,
+          borderColor: selected ? colors.accent : colors.border,
           opacity: disabled ? 0.4 : pressed ? 0.75 : 1,
         },
         style,

@@ -4,9 +4,11 @@ import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import type { NotificationSettings } from '../../common/types/domain.types';
 import { toDayKey } from '../../common/utils/date.util';
-import { User } from '../users/entities/user.entity';
+import { DEFAULT_NOTIFICATION_SETTINGS, User } from '../users/entities/user.entity';
 import { Outfit } from '../outfits/entities/outfit.entity';
+import type { OutfitResponse } from '../../common/types/domain.types';
 import { OutfitsService } from '../outfits/outfits.service';
 import { PushService } from './push.service';
 
@@ -22,12 +24,22 @@ export interface DailyOutfitRunResult {
   skipped: boolean;
 }
 
+/** Bildirim penceresine giren kullanıcı ve onun yerel gün anahtarı */
+interface DueUser {
+  user: User;
+  dayKey: string;
+}
+
 /**
  * Sabah kombini görevi.
  *
  * Kullanıcı uygulamayı açmadan, seçtiği saatte günün kombini hazırlanır ve
  * (push token varsa) bildirim gönderilir. Böylece kombin "o güne özel" olur;
  * uygulamayı her açışta yeniden üretilmez.
+ *
+ * Bildirim tek kanaldan gider: push token kayıtlıysa buradan, kayıtlı değilse
+ * cihazın kendi planladığı yerel bildirimden (bkz. frontend
+ * `useDailyNotificationScheduler`). İki kanal aynı anda çalışmaz.
  */
 @Injectable()
 export class DailyOutfitService {
@@ -41,7 +53,7 @@ export class DailyOutfitService {
     private readonly config: ConfigService,
   ) {}
 
-  /** Her 15 dakikada bir çalışır; sunucu saat dilimi TZ ile ayarlanır. */
+  /** Her 15 dakikada bir çalışır; kullanıcının saat dilimine göre eşleşir. */
   @Cron('0 */15 * * * *')
   async handleDailyOutfits(): Promise<DailyOutfitRunResult> {
     if (!this.config.get<boolean>('scheduler.dailyOutfitEnabled')) {
@@ -57,7 +69,7 @@ export class DailyOutfitService {
   async run(options?: { force?: boolean }): Promise<DailyOutfitRunResult> {
     const now = new Date();
     const candidates = options?.force
-      ? await this.findUsersWithoutTodayOutfit()
+      ? await this.findUsersWithoutTodayOutfit(now)
       : await this.findUsersDueNow(now);
 
     if (candidates.length === 0) {
@@ -68,46 +80,93 @@ export class DailyOutfitService {
 
     let generated = 0;
     let failed = 0;
-    for (const user of candidates) {
+    for (const candidate of candidates) {
       try {
-        await this.generateFor(user);
+        await this.deliverFor(candidate);
         generated += 1;
       } catch (error) {
         // Bir kullanıcının hatası diğerlerini etkilemesin
         failed += 1;
         this.logger.warn(
-          `Kombin üretilemedi (userId=${user.id}): ${error instanceof Error ? error.message : 'bilinmeyen hata'}`,
+          `Kombin üretilemedi (userId=${candidate.user.id}): ${error instanceof Error ? error.message : 'bilinmeyen hata'}`,
         );
       }
     }
     return { candidates: candidates.length, generated, failed, skipped: false };
   }
 
+  /**
+   * Kullanıcının saat dilimindeki "şimdi".
+   *
+   * Sunucu UTC'de çalışırken kullanıcının seçtiği 07:30'u sunucu saatiyle
+   * karşılaştırmak bildirimi saatler öncesine/sonrasına kaydırıyordu.
+   */
+  private localNow(
+    now: Date,
+    timezone?: string | null,
+  ): { dayKey: string; minutes: number } {
+    const fallback = {
+      dayKey: toDayKey(now),
+      minutes: now.getHours() * 60 + now.getMinutes(),
+    };
+    if (!timezone) return fallback;
+
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).formatToParts(now);
+
+      const part = (type: string) =>
+        parts.find((candidate) => candidate.type === type)?.value ?? '';
+
+      // Bazı ortamlar gece yarısını "24" olarak biçimlendirir
+      const hour = Number(part('hour')) % 24;
+      const minute = Number(part('minute'));
+      if (!Number.isFinite(hour) || !Number.isFinite(minute)) return fallback;
+
+      return {
+        dayKey: `${part('year')}-${part('month')}-${part('day')}`,
+        minutes: hour * 60 + minute,
+      };
+    } catch {
+      // Geçersiz saat dilimi: sunucu saatine düşülür
+      return fallback;
+    }
+  }
+
   /** Bildirimi açık olup bugün için kombini olmayan tüm kullanıcılar (elle çalıştırma) */
-  private async findUsersWithoutTodayOutfit(): Promise<User[]> {
+  private async findUsersWithoutTodayOutfit(now: Date): Promise<DueUser[]> {
     const users = await this.users.find({ where: { isActive: true } });
-    const today = toDayKey();
-    const result: User[] = [];
+    const result: DueUser[] = [];
     for (const user of users) {
       if (!user.notifications?.dailyOutfitEnabled) continue;
+      const { dayKey } = this.localNow(now, user.notifications.timezone);
       const existing = await this.outfits.count({
-        where: { userId: user.id, date: today },
+        where: { userId: user.id, date: dayKey },
       });
-      if (existing === 0) result.push(user);
+      if (existing === 0) result.push({ user, dayKey });
     }
     return result;
   }
 
   /**
-   * Bildirim saati son pencereye düşen, bildirimi açık ve bugün için
-   * kombini olmayan kullanıcılar.
+   * Bildirim saati son pencereye düşen ve bugün bildirimi henüz gönderilmemiş
+   * kullanıcılar.
+   *
+   * "Bugün kombini zaten var" durumu artık eleme sebebi değil: kullanıcı sabah
+   * uygulamayı açıp kombinini ürettiyse bildirim hiç gitmiyordu. Mükerrer
+   * bildirimi `lastNotifiedDate` engelliyor.
    */
-  private async findUsersDueNow(now: Date): Promise<User[]> {
+  private async findUsersDueNow(now: Date): Promise<DueUser[]> {
     const users = await this.users.find({ where: { isActive: true } });
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    const today = toDayKey(now);
 
-    const due: User[] = [];
+    const due: DueUser[] = [];
     for (const user of users) {
       const settings = user.notifications;
       if (!settings?.dailyOutfitEnabled) continue;
@@ -115,29 +174,49 @@ export class DailyOutfitService {
       const [hour, minute] = (settings.dailyOutfitTime ?? '08:00').split(':').map(Number);
       if (!Number.isFinite(hour) || !Number.isFinite(minute)) continue;
 
-      const targetMinutes = hour * 60 + minute;
-      const diff = nowMinutes - targetMinutes;
+      const { dayKey, minutes: nowMinutes } = this.localNow(now, settings.timezone);
+      const diff = nowMinutes - (hour * 60 + minute);
       if (diff < 0 || diff >= WINDOW_MINUTES) continue;
 
-      const existing = await this.outfits.count({ where: { userId: user.id, date: today } });
-      if (existing > 0) continue;
+      // Aynı gün ikinci kez bildirim gönderilmez
+      if (settings.lastNotifiedDate === dayKey) continue;
 
-      due.push(user);
+      due.push({ user, dayKey });
     }
     return due;
   }
 
-  private async generateFor(user: User): Promise<void> {
-    const outfit = await this.outfitsService.generate(user.id, {
-      date: toDayKey(),
-      occasion: 'daily',
-    });
+  private async deliverFor({ user, dayKey }: DueUser): Promise<void> {
+    // Kullanıcı sabah uygulamayı açıp kombinini zaten ürettiyse yenisi
+    // üretilmez; bildirim mevcut kombinle gönderilir.
+    const existing = await this.outfitsService.findToday(user.id, dayKey);
+    const outfit =
+      existing ??
+      (await this.outfitsService.generate(user.id, {
+        date: dayKey,
+        occasion: 'daily',
+      }));
 
-    this.logger.log(`Günün kombini hazır (userId=${user.id}, outfitId=${outfit.id})`);
+    if (!existing) {
+      this.logger.log(`Günün kombini hazır (userId=${user.id}, outfitId=${outfit.id})`);
+    }
+
+    await this.markNotified(user, dayKey);
 
     const token = user.notifications?.pushToken;
+    // Token yoksa cihaz kendi yerel bildirimini gösteriyor; buradan da
+    // göndermek çift bildirim demek olurdu.
     if (!token) return;
 
+    await this.push.send({
+      token,
+      title: `☀️ Günaydın${user.fullName ? ` ${user.fullName.split(' ')[0]}` : ''}!`,
+      body: this.buildBody(outfit),
+      data: { screen: 'DailyOutfit', outfitId: outfit.id },
+    });
+  }
+
+  private buildBody(outfit: OutfitResponse): string {
     const temperature = outfit.weather
       ? `${Math.round(outfit.weather.temperature)}°C`
       : null;
@@ -147,13 +226,25 @@ export class DailyOutfitService {
       .slice(0, 2)
       .join(' + ');
 
-    await this.push.send({
-      token,
-      title: `☀️ Günaydın${user.fullName ? ` ${user.fullName.split(' ')[0]}` : ''}!`,
-      body: temperature
-        ? `Bugün hava ${temperature}. Senin için ${pieces} kombinini hazırladık.`
-        : `Bugünün kombini hazır: ${pieces}`,
-      data: { screen: 'DailyOutfit', outfitId: outfit.id },
-    });
+    if (!pieces) {
+      return temperature
+        ? `Bugün hava ${temperature}. Günün kombini seni bekliyor.`
+        : 'Günün kombini seni bekliyor.';
+    }
+
+    return temperature
+      ? `Bugün hava ${temperature}. Senin için ${pieces} kombinini hazırladık.`
+      : `Bugünün kombini hazır: ${pieces}`;
+  }
+
+  /** Mükerrer bildirimi engelleyen gün damgası */
+  private async markNotified(user: User, dayKey: string): Promise<void> {
+    const fresh = await this.users.findOne({ where: { id: user.id } });
+    if (!fresh) return;
+
+    const current: NotificationSettings =
+      fresh.notifications ?? DEFAULT_NOTIFICATION_SETTINGS;
+    fresh.notifications = { ...current, lastNotifiedDate: dayKey };
+    await this.users.save(fresh);
   }
 }

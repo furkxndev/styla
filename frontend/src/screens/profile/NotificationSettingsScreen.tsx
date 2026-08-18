@@ -17,7 +17,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'NotificationSettings'>;
 export const NotificationSettingsScreen: React.FC<Props> = ({ navigation }) => {
   const user = useAuthStore((state) => state.user);
   const updateNotifications = useAuthStore((state) => state.updateNotifications);
-  const { setEnabled, setTime, sendPreview, previewText } = useNotificationControls();
+  const { setEnabled, setTime, previewText } = useNotificationControls();
 
   const settings = user?.notifications;
   const [showPicker, setShowPicker] = useState(false);
@@ -60,13 +60,6 @@ export const NotificationSettingsScreen: React.FC<Props> = ({ navigation }) => {
               </Text>
             </View>
           </View>
-          <Button
-            label="Örnek bildirim gönder"
-            variant="outline"
-            size="sm"
-            icon="notifications-outline"
-            onPress={sendPreview}
-          />
         </Card>
 
         <Card padded={false}>

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { authApi, setTokenRefresher, setUnauthorizedHandler } from '../services/api';
+import { notificationService } from '../services/notifications/notificationService';
 import { secureStorage, storage } from '../services/storage';
 import { ApiError, type AsyncStatus } from '../types/api';
 import type {
@@ -27,6 +28,7 @@ interface AuthState {
   updateProfile: (patch: Partial<User>) => Promise<void>;
   updatePreferences: (preferences: Partial<StylePreferences>) => Promise<void>;
   updateNotifications: (settings: Partial<NotificationSettings>) => Promise<void>;
+  registerPushToken: (token: string, timezone: string | null) => Promise<void>;
   updateLocation: (location: Partial<UserLocationSettings>) => Promise<void>;
   completeOnboarding: () => Promise<void>;
   clearError: () => void;
@@ -104,6 +106,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   async logout() {
+    // Çıkıştan sonra bu cihaza bildirim gitmemeli: sunucudaki push token
+    // düşürülür, cihazdaki planlı bildirim iptal edilir.
+    const notifications = get().user?.notifications;
+    if (notifications?.pushToken) {
+      await authApi
+        .updateNotifications({ ...notifications, pushToken: null })
+        .catch(() => undefined);
+    }
+    await notificationService.cancelDailyOutfit().catch(() => undefined);
+
     await authApi.logout().catch(() => undefined);
     await clearSession();
     set({ user: null, status: 'idle', error: null });
@@ -148,6 +160,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       set({ user: previous, error: 'Bildirim ayarları güncellenemedi.' });
     }
+  },
+
+  /**
+   * Push token sunucuya kaydedilir. Token kaydedildiği andan itibaren günlük
+   * bildirimi sunucu gönderir; cihaz yerel planlamayı bırakır (bkz.
+   * useDailyNotificationScheduler). Böylece aynı saatte tek bildirim gelir.
+   */
+  async registerPushToken(token, timezone) {
+    const previous = get().user;
+    if (!previous) return;
+
+    const current = previous.notifications;
+    if (current.pushToken === token && current.timezone === timezone) return;
+
+    try {
+      await authApi.registerPushToken(token, timezone);
+    } catch {
+      // Kayıt olmadıysa cihaz yerel bildirime devam eder; bir sonraki
+      // açılışta yeniden denenir.
+      return;
+    }
+
+    const latest = get().user;
+    if (!latest) return;
+    const merged = { ...latest.notifications, pushToken: token, timezone };
+    const user = { ...latest, notifications: merged };
+    set({ user });
+    await storage.set(STORAGE_KEYS.session, user);
   },
 
   async updateLocation(location) {

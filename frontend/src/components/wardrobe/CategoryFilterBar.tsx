@@ -64,7 +64,8 @@ const CategoryChip: React.FC<{
   selected: boolean;
   onPress: () => void;
 }> = ({ label, icon, count, selected, onPress }) => {
-  const fg = selected ? colors.primaryText : colors.textSecondary;
+  // Vurgu rengi zemin ve kenarlıkta; metin kontrast için koyu kalır
+  const fg = selected ? colors.text : colors.textSecondary;
 
   return (
     <Pressable
@@ -115,7 +116,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  // Kombin ekranındaki ortam seçiciyle ve gardırop araç çubuğuyla aynı dil
+  chipSelected: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
   label: { ...typography.caption, fontSize: 13 },
   count: {
     minWidth: 20,
@@ -125,7 +127,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
   },
-  // Seçili çipte sayı baloncuğu koyu zeminde okunur kalsın
-  countSelected: { backgroundColor: 'rgba(255,255,255,0.18)' },
+  // Seçili çipte baloncuk vurgu zemininden ayrışsın diye beyaza çekilir
+  countSelected: { backgroundColor: colors.surface },
   countText: { ...typography.captionStrong, fontSize: 11 },
 });

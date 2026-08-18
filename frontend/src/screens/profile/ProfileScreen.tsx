@@ -191,31 +191,11 @@ export const ProfileScreen: React.FC = () => {
           />
           <Divider inset />
           <ListRow
-            icon="settings-outline"
-            title="Uygulama ayarları"
+            icon="person-circle-outline"
+            title="Hesap"
+            subtitle="Ad, e-posta ve uygulama bilgileri"
             onPress={() => navigation.navigate('Settings')}
           />
-        </View>
-      </Card>
-
-      <Card padded={false} header={{ title: 'Yakında', icon: 'time-outline' }}>
-        <View style={styles.rowGroup}>
-          {[
-            { icon: 'calendar-outline' as const, label: 'Haftalık kombin planlama' },
-            {
-              icon: 'stats-chart-outline' as const,
-              label: 'Kıyafet kullanım istatistikleri',
-            },
-            { icon: 'bag-handle-outline' as const, label: 'Alışveriş önerileri' },
-          ].map((item) => (
-            <ListRow
-              key={item.label}
-              icon={item.icon}
-              title={item.label}
-              showChevron={false}
-              rightSlot={<Badge label="Yakında" tone="neutral" />}
-            />
-          ))}
         </View>
       </Card>
 

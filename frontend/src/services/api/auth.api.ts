@@ -52,10 +52,13 @@ export const authApi = {
       ? mockAuth.updateUser({ notifications })
       : apiClient.patch<User>(ENDPOINTS.user.notifications, notifications),
 
-  registerPushToken: (token: string): Promise<void> =>
+  registerPushToken: (token: string, timezone?: string | null): Promise<void> =>
     config.useMockApi
       ? Promise.resolve()
-      : apiClient.post<void>(ENDPOINTS.user.pushToken, { token }),
+      : apiClient.post<void>(ENDPOINTS.user.pushToken, {
+          token,
+          ...(timezone ? { timezone } : {}),
+        }),
 
   stats: (): Promise<WardrobeStats> =>
     config.useMockApi
